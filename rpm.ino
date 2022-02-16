@@ -62,8 +62,6 @@ void displayRPM(unsigned RPM)
 {
   float WheelRPM = RPM/GearRatio;
   float metersPerMinute = WheelRPM * WheelRadiusInMeters;
-  ;
- 
 
   Serial.print("WheelRPM = "); //print the word "RPM".
   Serial.print(WheelRPM); // print the rpm value.
