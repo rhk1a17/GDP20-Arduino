@@ -7,6 +7,7 @@
 #define  CTRL_REG5  0x24
 #define  CTRL_REG6  0x25
 
+int gyroI2CAddr_2=104;                  // default address 105, secondary 104
 int gyroI2CAddr=105;
 
 int gyroRaw[3];                         // raw sensor data, each axis, pretty useless really but here it is.
