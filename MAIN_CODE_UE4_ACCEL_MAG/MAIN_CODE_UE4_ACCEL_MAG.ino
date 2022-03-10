@@ -1,3 +1,6 @@
+#include <Wire.h>
+#include <SparkFunLSM9DS1.h>
+
 //======================================Accel===================================
 #include "BMI088.h"
 float ax = 0, ay = 0, az = 0;
@@ -5,23 +8,19 @@ float gx = 0, gy = 0, gz = 0;
 float mapped_ax;
 int16_t temp = 0;
 //======================================Accel===================================
-/*
+
 //======================================magneto===================================
 #define DECLINATION 0.0833
-// declination (in degrees) in Southampton UK. Change it to match location
 #define PRINT_CALCULATED  
-#include <Wire.h>
-#include <SparkFunLSM9DS1.h>
 
 #define LSM9DS1_M 0x1E  
 //magnetometer
+
 #define LSM9DS1_AG 0x6B 
 //accelerometer and gyroscope
 LSM9DS1 imu; 
 // Creation of the object
 
-float heading, pitch, roll;
-*/
 float heading = 0;
 //======================================magneto===================================
 
@@ -47,9 +46,10 @@ const float SFWCircuferenceInMeters = TWO_PI * SFWRadiusInMeteres;
 //==========================RPM constants==================================
 
 void setup(void) {
-  Serial.begin(9600);
+  Serial.begin(115200);
   Wire.begin();
   Serial.setTimeout(5);
+  
   //=======================Accel==========================
   while(1)
   {
@@ -61,13 +61,21 @@ void setup(void) {
     delay(2000);
   }
   //=======================Accel==========================
-/*
+
   //=======================Megneto==========================
   imu.settings.device.commInterface = IMU_MODE_I2C; 
   // initialization of the module
+
   imu.settings.device.mAddress = LSM9DS1_M;        
   //setting up addresses
-  imu.settings.device.agAddress = LSM9DS1_AG;*/
+
+  imu.settings.device.agAddress = LSM9DS1_AG;
+  if (!imu.begin()) 
+  //display error message if that's the case
+  {
+    Serial.println("Communication problem.");
+    while (1);
+  }
   //=======================Magneto==========================
 
   //=====================RPM Setup========================
@@ -82,27 +90,28 @@ void loop() {
     bmi088.getAcceleration(&ax, &ay, &az);
     mapped_ax = map(ax,-1000,1000,-90.0,90.0);
     //======================================Accel===================================
-/*
+ /*
     //=====================================Magneto==================================
-    //measure
     if ( imu.gyroAvailable() )
     {
-        imu.readGyro(); 
+      imu.readGyro(); 
     //measure with the gyroscope
     }
+   
     if ( imu.accelAvailable() )
     {
-        imu.readAccel(); 
+      imu.readAccel(); 
     //measure with the accelerometer
+
     }
     if ( imu.magAvailable() )
     {
-        imu.readMag(); 
+      imu.readMag(); 
     //measure with the magnetometer
     }
-    printAttitude(imu.ax, imu.ay, imu.az, -imu.my, -imu.mx, imu.mz);
-    //=====================================Magneto==================================
-*/
+    printAttitude(imu.ax, imu.ay, imu.az, -imu.my, -imu.mx, imu.mz); 
+    //=====================================Magneto==================================*/
+
     // divide total val * weightage (0.9 steer 0.1 tilt) 
     // -0.45 and -0.05 for offset in UE4
     //rotation_val = String((((steerval/1023.0)*0.9)-0.45)+(((tiltval/1023.0)*0.1)-0.05)); 
@@ -135,7 +144,7 @@ void loop() {
         rpmval = WheelRPM;
     }
     //======================================RPM=====================================
-
+    
     //======================================UE4=====================================
     if (!Serial.available()) return;
 
@@ -147,7 +156,6 @@ void loop() {
         long_str = String(mapped_ax) + "," + String(heading) + "," + rpmval; 
         Serial.println(long_str);
     }
-    
     //======================================UE4=====================================
 }
 
@@ -161,19 +169,19 @@ void RevSenseISR()
   revSensePreviousMicros = RevSenseTimeMicros;
 }
 //===================================RPM Interrupt function=================
-/*
+
 //===================================Magnetometer Heading=================
 void printAttitude(float ax, float ay, float az, float mx, float my, float mz)
 {
-  roll = atan2(ay, az); 
-//calculate roll
+  float roll = atan2(ay, az); 
+  //calculate roll
 
-  pitch = atan2(-ax, sqrt(ay * ay + az * az));  
-//calculate pitch
+  float pitch = atan2(-ax, sqrt(ay * ay + az * az));  
+  //calculate pitch
 
 
   
-//calculate heading
+  //calculate heading
 
   if (my == 0) {
     heading = (mx < 0) ? PI : 0;
@@ -183,7 +191,7 @@ void printAttitude(float ax, float ay, float az, float mx, float my, float mz)
   }
 
   
-//correct heading according to declination
+  //correct heading according to declination
 
   heading -= DECLINATION * PI / 180;
   if (heading > PI) {
@@ -197,11 +205,10 @@ void printAttitude(float ax, float ay, float az, float mx, float my, float mz)
   }
 
   
-//convert values in degree
+  //convert values in degree
 
   heading *= 180.0 / PI;
   pitch *= 180.0 / PI;
   roll *= 180.0 / PI;
-
 }
-//===================================Magnetometer Heading=================*/
+//===================================Magnetometer Heading=================

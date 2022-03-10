@@ -33,8 +33,8 @@
 // http://www.ngdc.noaa.gov/geomag-web/#declination
 
 
-#define DECLINATION 0.0833
-// declination (in degrees) in Southampton UK.
+#define DECLINATION -5.55 
+// declination (in degrees) in Cluj-Napoca (Romania).
 
 
 /************************************************************************/
@@ -128,7 +128,7 @@ void loop()
   printAttitude(imu.ax, imu.ay, imu.az, -imu.my, -imu.mx, imu.mz); 
 //print pitch, roll and heading
 
-  //Serial.println();
+  Serial.println();
   delay(1000);
 }
 
@@ -260,13 +260,12 @@ void printAttitude(float ax, float ay, float az, float mx, float my, float mz)
 
   
 //display calculated data
-/*
-  Serial.print("Pitch, Roll: ");
-  Serial.print(pitch, 2);
-  Serial.print(", ");
-  Serial.print(roll, 2);
-  Serial.println(" °");
-  */
+
+  //Serial.print("Pitch, Roll: ");
+  //Serial.print(pitch, 2);
+  //Serial.print(", ");
+  //Serial.print(roll, 2);
+  //Serial.println(" °");
   Serial.print("Heading: ");
   Serial.print(heading, 2);
   Serial.println(" °");
