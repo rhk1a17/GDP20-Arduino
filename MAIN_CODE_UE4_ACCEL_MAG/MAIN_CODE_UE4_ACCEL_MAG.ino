@@ -1,12 +1,32 @@
-int tiltpotPin = 0;    //tilt pin ANALOG 0  
-int steerpotPin = 1;     //steering pin ANALOG 1
-#define ADC_REF 5 //reference voltage of ADC is 5v.If the Vcc switch on the seeeduino
-                    //board switches to 3V3, the ADC_REF should be 3.3
-#define GROVE_VCC 5 //VCC of the grove interface is normally 5v
-#define FULL_ANGLE 300 //full value of the rotary angle is 300 degrees
+//======================================Accel===================================
+#include "BMI088.h"
+float ax = 0, ay = 0, az = 0;
+float gx = 0, gy = 0, gz = 0;
+float mapped_ax;
+int16_t temp = 0;
+//======================================Accel===================================
+/*
+//======================================magneto===================================
+#define DECLINATION 0.0833
+// declination (in degrees) in Southampton UK. Change it to match location
+#define PRINT_CALCULATED  
+#include <Wire.h>
+#include <SparkFunLSM9DS1.h>
+
+#define LSM9DS1_M 0x1E  
+//magnetometer
+#define LSM9DS1_AG 0x6B 
+//accelerometer and gyroscope
+LSM9DS1 imu; 
+// Creation of the object
+
+float heading, pitch, roll;
+*/
+float heading = 0;
+//======================================magneto===================================
+
 String long_str,rotation_val;
-long steerval, tiltval, rpmval;
-float tilt_voltage, steer_voltage;
+long rpmval;
 
 //==========================RPM constants==================================
 const byte RevSensePin = 2;
@@ -26,33 +46,63 @@ const float GearRatio = WheelRadiusInMeters/SFWRadiusInMeteres;
 const float SFWCircuferenceInMeters = TWO_PI * SFWRadiusInMeteres;
 //==========================RPM constants==================================
 
-void setup() {
-    Serial.begin(9600);
-    Serial.setTimeout(5);
-    //=====================RPM Setup========================
-    pinMode(RevSensePin, INPUT);
-    attachInterrupt(digitalPinToInterrupt(RevSensePin), RevSenseISR, RISING);
-    //=====================RPM Setup========================
+void setup(void) {
+  Serial.begin(9600);
+  Wire.begin();
+  Serial.setTimeout(5);
+  //=======================Accel==========================
+  while(1)
+  {
+    if(bmi088.isConnection())
+    {
+        bmi088.initialize();
+        break;
+    }
+    delay(2000);
+  }
+  //=======================Accel==========================
+/*
+  //=======================Megneto==========================
+  imu.settings.device.commInterface = IMU_MODE_I2C; 
+  // initialization of the module
+  imu.settings.device.mAddress = LSM9DS1_M;        
+  //setting up addresses
+  imu.settings.device.agAddress = LSM9DS1_AG;*/
+  //=======================Magneto==========================
+
+  //=====================RPM Setup========================
+  pinMode(RevSensePin, INPUT);
+  attachInterrupt(digitalPinToInterrupt(RevSensePin), RevSenseISR, RISING);
+  //=====================RPM Setup========================
 }
 
 void loop() {
-    //tiltval = analogRead(tiltpotPin);    // TILT
-    //steerval = analogRead(steerpotPin);    // STEER
 
-    //===============================TILT===============================
-    tiltval = analogRead(tiltpotPin);
-    tilt_voltage = (float)tiltval*ADC_REF/1023;
-    float tilt_degrees = (tilt_voltage*FULL_ANGLE)/GROVE_VCC;
-    float tilt_degreesFromCentre = tilt_degrees - 150;
-    //===============================TILT===============================
-
-    //===============================STEER===============================
-    steerval = analogRead(steerpotPin);
-    steer_voltage = (float)steerval*ADC_REF/1023;
-    float steer_degrees = (steer_voltage*FULL_ANGLE)/GROVE_VCC;
-    float steer_degreesFromCentre = steer_degrees - 150;
-    //===============================STEER===============================
-
+    //======================================Accel===================================
+    bmi088.getAcceleration(&ax, &ay, &az);
+    mapped_ax = map(ax,-1000,1000,-90.0,90.0);
+    //======================================Accel===================================
+/*
+    //=====================================Magneto==================================
+    //measure
+    if ( imu.gyroAvailable() )
+    {
+        imu.readGyro(); 
+    //measure with the gyroscope
+    }
+    if ( imu.accelAvailable() )
+    {
+        imu.readAccel(); 
+    //measure with the accelerometer
+    }
+    if ( imu.magAvailable() )
+    {
+        imu.readMag(); 
+    //measure with the magnetometer
+    }
+    printAttitude(imu.ax, imu.ay, imu.az, -imu.my, -imu.mx, imu.mz);
+    //=====================================Magneto==================================
+*/
     // divide total val * weightage (0.9 steer 0.1 tilt) 
     // -0.45 and -0.05 for offset in UE4
     //rotation_val = String((((steerval/1023.0)*0.9)-0.45)+(((tiltval/1023.0)*0.1)-0.05)); 
@@ -85,7 +135,7 @@ void loop() {
         rpmval = WheelRPM;
     }
     //======================================RPM=====================================
-    
+
     //======================================UE4=====================================
     if (!Serial.available()) return;
 
@@ -93,10 +143,11 @@ void loop() {
     
     if (str == "data")
     {
-        long_str = String(steer_degreesFromCentre) + "," + String(tilt_degreesFromCentre) + "," + rpmval; // Steer + Tilt + rpm separated by comma
+        // tilt accel val + steer magneto val + rpm separated by comma
+        long_str = String(mapped_ax) + "," + String(heading) + "," + rpmval; 
         Serial.println(long_str);
     }
-
+    
     //======================================UE4=====================================
 }
 
@@ -110,3 +161,47 @@ void RevSenseISR()
   revSensePreviousMicros = RevSenseTimeMicros;
 }
 //===================================RPM Interrupt function=================
+/*
+//===================================Magnetometer Heading=================
+void printAttitude(float ax, float ay, float az, float mx, float my, float mz)
+{
+  roll = atan2(ay, az); 
+//calculate roll
+
+  pitch = atan2(-ax, sqrt(ay * ay + az * az));  
+//calculate pitch
+
+
+  
+//calculate heading
+
+  if (my == 0) {
+    heading = (mx < 0) ? PI : 0;
+  }
+  else {
+    heading = atan2(mx, my);
+  }
+
+  
+//correct heading according to declination
+
+  heading -= DECLINATION * PI / 180;
+  if (heading > PI) {
+    heading -= (2 * PI);
+  }
+  else if (heading < -PI) {
+    heading += (2 * PI);
+  }
+  else if (heading < 0) {
+    heading += 2 * PI;
+  }
+
+  
+//convert values in degree
+
+  heading *= 180.0 / PI;
+  pitch *= 180.0 / PI;
+  roll *= 180.0 / PI;
+
+}
+//===================================Magnetometer Heading=================*/
