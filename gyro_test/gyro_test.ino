@@ -7,27 +7,20 @@
 #define  CTRL_REG5  0x24
 #define  CTRL_REG6  0x25
 
-int gyroI2CAddr_2=104;                  // default address 105, secondary 104
 int gyroI2CAddr=105;
 
 int gyroRaw[3];                         // raw sensor data, each axis, pretty useless really but here it is.
-int gyroRaw_2[3];
 double gyroDPS[3];                      // gyro degrees per second, each axis
-double gyroDPS_2[3];
 
 float heading[3]={0.0f};                // heading[x], heading[y], heading [z]
-float heading_2[3]={0.0f};
 
 int gyroZeroRate[3];                    // Calibration data.  Needed because the sensor does center at zero, but rather always reports a small amount of rotation on each axis.
-int gyroZeroRate_2[3];
 int gyroThreshold[3];                   // Raw rate change data less than the statistically derived threshold is discarded.
-int gyroThreshold_2[3];
 
-#define  NUM_GYRO_SAMPLES  50           // As recommended in STMicro doc
+#define  NUM_GYRO_SAMPLES  100           // As recommended in STMicro doc
 #define  GYRO_SIGMA_MULTIPLE  3         // As recommended 
 
 float dpsPerDigit=.00875f;              // for conversion to degrees per second
-float dpsPerDigit_2=.00875f;
 
 void setup() {
   Serial.begin(9600);
@@ -39,13 +32,14 @@ void setup() {
 void loop() {
   updateGyroValues();
   updateHeadings();
-  testCalibration();
+  //testCalibration();
+  //calibrateGyro();
 
-  // printDPS();
-  // Serial.print("   -->   ");
+  //printDPS();
+  //Serial.print("   -->   ");
   printHeadings();
   Serial.println();
-  delay(100);
+  delay(1000);
 }
 
 void printDPS()
@@ -56,30 +50,16 @@ void printDPS()
   Serial.print(gyroDPS[1]);
   Serial.print("  Z: ");
   Serial.print(gyroDPS[2]);
-  
-  Serial.print("DPS X_2: ");
-  Serial.print(gyroDPS_2[0]);
-  Serial.print("  Y_2: ");
-  Serial.print(gyroDPS_2[1]);
-  Serial.print("  Z_2: ");
-  Serial.print(gyroDPS_2[2]);
 }
 
 void printHeadings()
 {
   Serial.print("Heading X: ");
   Serial.print(heading[0]);
-  // Serial.print("  Y: ");
-  // Serial.print(heading[1]);
-  // Serial.print("  Z: ");
-  // Serial.print(heading[2]);
-  
-  Serial.print("Heading X_2: ");
-  Serial.print(heading_2[0]);
-  // Serial.print("  Y_2: ");
-  // Serial.print(heading_2[1]);
-  // Serial.print("  Z_2: ");
-  // Serial.print(heading_2[2]);
+  Serial.print("  Y: ");
+  Serial.print(heading[1]);
+  Serial.print("  Z: ");
+  Serial.print(heading[2]);
 }
 
 void updateHeadings()
@@ -87,10 +67,8 @@ void updateHeadings()
     
   float deltaT=getDeltaTMicros();
 
-  for (int j=0;j<3;j++){
+  for (int j=0;j<3;j++)
     heading[j] -= (gyroDPS[j]*deltaT)/1000000.0f;
-    heading_2[j] -= (gyroDPS_2[j]*deltaT)/1000000.0f;
-  }
 }
 
 // this simply returns the elapsed time since the last call.
@@ -117,9 +95,9 @@ void testCalibration()
   calibrateGyro();
   for (int j=0;j<3;j++)
   {
-    Serial.print(gyroZeroRate[j]+gyroZeroRate_2[j]);
+    Serial.print(gyroZeroRate[j]);
     Serial.print("  ");
-    Serial.print(gyroThreshold[j]+gyroThreshold_2[j]);
+    Serial.print(gyroThreshold[j]);
     Serial.print("  ");  
   }
   Serial.println();
@@ -129,10 +107,8 @@ void testCalibration()
 // The settings here will suffice unless you want to use the interrupt feature.
 void setupGyro()
 {
-  gyroWriteI2C(gyroI2CAddr,CTRL_REG1, 0x1F);        // Turn on all axes, disable power down
-  gyroWriteI2C(gyroI2CAddr_2,CTRL_REG1, 0x1F);
-  gyroWriteI2C(gyroI2CAddr,CTRL_REG3, 0x08);        // Enable control ready signal
-  gyroWriteI2C(gyroI2CAddr_2,CTRL_REG3, 0x08);
+  gyroWriteI2C(CTRL_REG1, 0x1F);        // Turn on all axes, disable power down
+  gyroWriteI2C(CTRL_REG3, 0x08);        // Enable control ready signal
   setGyroSensitivity500();
 
   delay(1000);
@@ -144,8 +120,6 @@ void calibrateGyro()
 {
   long int gyroSums[3]={0};
   long int gyroSigma[3]={0};
-  long int gyroSums_2[3]={0};
-  long int gyroSigma_2[3]={0};
  
   for (int i=0;i<NUM_GYRO_SAMPLES;i++)
   {
@@ -153,94 +127,74 @@ void calibrateGyro()
     for (int j=0;j<3;j++)
     {
       gyroSums[j]+=gyroRaw[j];
-      gyroSums_2[j]+=gyroRaw_2[j];
       gyroSigma[j]+=gyroRaw[j]*gyroRaw[j];
-      gyroSigma_2[j]+=gyroRaw_2[j]*gyroRaw_2[j];
     }
   }
   for (int j=0;j<3;j++)
   {
     int averageRate=gyroSums[j]/NUM_GYRO_SAMPLES;
-    int averageRate_2=gyroSums_2[j]/NUM_GYRO_SAMPLES;
     
     // Per STM docs, we store the average of the samples for each axis and subtract them when we use the data.
     gyroZeroRate[j]=averageRate;
-    gyroZeroRate_2[j]=averageRate_2;
     
     // Per STM docs, we create a threshold for each axis based on the standard deviation of the samples times 3.
-    gyroThreshold[j]=sqrt((double(gyroSigma[j]) / NUM_GYRO_SAMPLES) - (averageRate * averageRate)) * GYRO_SIGMA_MULTIPLE; 
-    gyroThreshold_2[j]=sqrt((double(gyroSigma_2[j]) / NUM_GYRO_SAMPLES) - (averageRate_2 * averageRate_2)) * GYRO_SIGMA_MULTIPLE;    
+    gyroThreshold[j]=sqrt((double(gyroSigma[j]) / NUM_GYRO_SAMPLES) - (averageRate * averageRate)) * GYRO_SIGMA_MULTIPLE;    
   }
 }
 
 void updateGyroValues() {
 
-  while (!(gyroReadI2C(gyroI2CAddr,0x27) & B00001000)){}      // Without this line you will get bad data occasionally
-  while (!(gyroReadI2C(gyroI2CAddr_2,0x27) & B00001000)){}
-
+  while (!(gyroReadI2C(0x27) & B00001000)){}      // Without this line you will get bad data occasionally
+  
   //if (gyroReadI2C(0x27) & B01000000)
   //  Serial.println("Data missed!  Consider using an interrupt");
     
   int reg=0x28;
   for (int j=0;j<3;j++)
   {
-    gyroRaw[j]=(gyroReadI2C(gyroI2CAddr,reg) | (gyroReadI2C(gyroI2CAddr,reg+1)<<8));
-    gyroRaw_2[j]=(gyroReadI2C(gyroI2CAddr_2,reg) | (gyroReadI2C(gyroI2CAddr_2,reg+1)<<8));
+    gyroRaw[j]=(gyroReadI2C(reg) | (gyroReadI2C(reg+1)<<8));
     reg+=2;
   }
  
   int deltaGyro[3];
-  int deltaGyro_2[3];
   for (int j=0;j<3;j++)
   {
     deltaGyro[j]=gyroRaw[j]-gyroZeroRate[j];      // Use the calibration data to modify the sensor value.
-    deltaGyro_2[j]=gyroRaw_2[j]-gyroZeroRate_2[j];
-
     if (abs(deltaGyro[j]) < gyroThreshold[j])
       deltaGyro[j]=0;
     gyroDPS[j]= dpsPerDigit * deltaGyro[j];      // Multiply the sensor value by the sensitivity factor to get degrees per second.
-    
-    if (abs(deltaGyro_2[j]) < gyroThreshold_2[j])
-      deltaGyro_2[j]=0;
-    gyroDPS_2[j]= dpsPerDigit_2 * deltaGyro_2[j];
   }
 }
 
 void setGyroSensitivity250(void)
 {
   dpsPerDigit=.00875f;
-  dpsPerDigit_2=.00875f;
-  gyroWriteI2C(gyroI2CAddr,CTRL_REG4, 0x80);        // Set scale (250 deg/sec)
-  gyroWriteI2C(gyroI2CAddr_2,CTRL_REG4, 0x80);
+  gyroWriteI2C(CTRL_REG4, 0x80);        // Set scale (250 deg/sec)
 }
 
 void setGyroSensitivity500(void)
 {
   dpsPerDigit=.0175f;
-  dpsPerDigit_2=.0175f;
-  gyroWriteI2C(gyroI2CAddr,CTRL_REG4, 0x90);        // Set scale (500 deg/sec)
-  gyroWriteI2C(gyroI2CAddr_2,CTRL_REG4, 0x90);
+  gyroWriteI2C(CTRL_REG4, 0x90);        // Set scale (500 deg/sec)
 }
 
 void setGyroSensitivity2000(void)
 {
   dpsPerDigit=.07f;
-  dpsPerDigit_2=.07f;
-  gyroWriteI2C(gyroI2CAddr,CTRL_REG4,0xA0); 
-  gyroWriteI2C(gyroI2CAddr_2,CTRL_REG4,0xA0);
+  gyroWriteI2C(CTRL_REG4,0xA0); 
 }
 
-int gyroReadI2C (int gyroaddr, byte regAddr) {
-  Wire.beginTransmission(gyroaddr);
+int gyroReadI2C (byte regAddr) {
+  Wire.beginTransmission(gyroI2CAddr);
   Wire.write(regAddr);
   Wire.endTransmission();
-  Wire.requestFrom(gyroaddr, 1);
+  Wire.requestFrom(gyroI2CAddr, 1);
   while(!Wire.available()) {};
   return (Wire.read());
 }
 
-int gyroWriteI2C(int gyroaddr, byte regAddr, byte val){
-  Wire.beginTransmission(gyroaddr);
+int gyroWriteI2C( byte regAddr, byte val){
+  Wire.beginTransmission(gyroI2CAddr);
   Wire.write(regAddr);
   Wire.write(val);
   Wire.endTransmission();
