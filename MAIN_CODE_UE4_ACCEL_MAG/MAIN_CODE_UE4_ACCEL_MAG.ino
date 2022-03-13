@@ -1,6 +1,3 @@
-#include <Wire.h>
-#include <SparkFunLSM9DS1.h>
-
 //======================================Accel===================================
 #include "BMI088.h"
 float ax = 0, ay = 0, az = 0;
@@ -10,18 +7,22 @@ int16_t temp = 0;
 //======================================Accel===================================
 
 //======================================magneto===================================
-#define DECLINATION 0.0833
-#define PRINT_CALCULATED  
+#include <Wire.h>
+#include <SPI.h>
+#include <Adafruit_LSM9DS1.h>
+#include <Adafruit_Sensor.h>  // not used in this demo but required!
+Adafruit_LSM9DS1 lsm = Adafruit_LSM9DS1();
 
-#define LSM9DS1_M 0x1E  
-//magnetometer
+#define LSM9DS1_SCK A5
+#define LSM9DS1_MISO 12
+#define LSM9DS1_MOSI A4
+#define LSM9DS1_XGCS 6
+#define LSM9DS1_MCS 5
 
-#define LSM9DS1_AG 0x6B 
-//accelerometer and gyroscope
-LSM9DS1 imu; 
-// Creation of the object
+#define DECLINATION 0.0833 
+// declination (in degrees) in Southampton
 
-float heading = 0;
+float mx, my, mz, heading;
 //======================================magneto===================================
 
 String long_str,rotation_val;
@@ -63,19 +64,14 @@ void setup(void) {
   //=======================Accel==========================
 
   //=======================Megneto==========================
-  imu.settings.device.commInterface = IMU_MODE_I2C; 
-  // initialization of the module
-
-  imu.settings.device.mAddress = LSM9DS1_M;        
-  //setting up addresses
-
-  imu.settings.device.agAddress = LSM9DS1_AG;
-  if (!imu.begin()) 
-  //display error message if that's the case
+  // Try to initialise and warn if we couldn't detect the chip
+  if (!lsm.begin())
   {
-    Serial.println("Communication problem.");
+    Serial.println("No Magnetometer");
     while (1);
   }
+  // helper to just set the default scaling we want, see above!
+  setupSensor();
   //=======================Magneto==========================
 
   //=====================RPM Setup========================
@@ -90,27 +86,46 @@ void loop() {
     bmi088.getAcceleration(&ax, &ay, &az);
     mapped_ax = map(ax,-1000,1000,-90.0,90.0);
     //======================================Accel===================================
- /*
+ 
     //=====================================Magneto==================================
-    if ( imu.gyroAvailable() )
-    {
-      imu.readGyro(); 
-    //measure with the gyroscope
-    }
-   
-    if ( imu.accelAvailable() )
-    {
-      imu.readAccel(); 
-    //measure with the accelerometer
+    lsm.read();  /* ask it to read in the data */ 
+    /* Get a new sensor event */ 
+    sensors_event_t a, m, g, temp;
 
+    lsm.getEvent(&a, &m, &g, &temp);
+
+    mx = m.magnetic.x;
+    my = m.magnetic.y;
+    mz = m.magnetic.z;
+
+    //calculate heading
+
+    if (my == 0) {
+      heading = (mx < 0) ? PI : 0;
     }
-    if ( imu.magAvailable() )
-    {
-      imu.readMag(); 
-    //measure with the magnetometer
+    else {
+      heading = atan2(mx, my);
     }
-    printAttitude(imu.ax, imu.ay, imu.az, -imu.my, -imu.mx, imu.mz); 
-    //=====================================Magneto==================================*/
+
+    
+    //correct heading according to declination
+
+    heading -= DECLINATION * PI / 180;
+    if (heading > PI) {
+      heading -= (2 * PI);
+    }
+    else if (heading < -PI) {
+      heading += (2 * PI);
+    }
+    else if (heading < 0) {
+      heading += 2 * PI;
+    }
+
+    
+    //convert values in degree
+
+    heading *= 180.0 / PI;
+    //=====================================Magneto==================================
 
     // divide total val * weightage (0.9 steer 0.1 tilt) 
     // -0.45 and -0.05 for offset in UE4
@@ -170,45 +185,24 @@ void RevSenseISR()
 }
 //===================================RPM Interrupt function=================
 
-//===================================Magnetometer Heading=================
-void printAttitude(float ax, float ay, float az, float mx, float my, float mz)
+//===================================Magnetometer Setup=================
+void setupSensor()
 {
-  float roll = atan2(ay, az); 
-  //calculate roll
-
-  float pitch = atan2(-ax, sqrt(ay * ay + az * az));  
-  //calculate pitch
-
-
+  // 1.) Set the accelerometer range
+  lsm.setupAccel(lsm.LSM9DS1_ACCELRANGE_2G);
+  //lsm.setupAccel(lsm.LSM9DS1_ACCELRANGE_4G);
+  //lsm.setupAccel(lsm.LSM9DS1_ACCELRANGE_8G);
+  //lsm.setupAccel(lsm.LSM9DS1_ACCELRANGE_16G);
   
-  //calculate heading
+  // 2.) Set the magnetometer sensitivity
+  lsm.setupMag(lsm.LSM9DS1_MAGGAIN_4GAUSS);
+  //lsm.setupMag(lsm.LSM9DS1_MAGGAIN_8GAUSS);
+  //lsm.setupMag(lsm.LSM9DS1_MAGGAIN_12GAUSS);
+  //lsm.setupMag(lsm.LSM9DS1_MAGGAIN_16GAUSS);
 
-  if (my == 0) {
-    heading = (mx < 0) ? PI : 0;
-  }
-  else {
-    heading = atan2(mx, my);
-  }
-
-  
-  //correct heading according to declination
-
-  heading -= DECLINATION * PI / 180;
-  if (heading > PI) {
-    heading -= (2 * PI);
-  }
-  else if (heading < -PI) {
-    heading += (2 * PI);
-  }
-  else if (heading < 0) {
-    heading += 2 * PI;
-  }
-
-  
-  //convert values in degree
-
-  heading *= 180.0 / PI;
-  pitch *= 180.0 / PI;
-  roll *= 180.0 / PI;
+  // 3.) Setup the gyroscope
+  lsm.setupGyro(lsm.LSM9DS1_GYROSCALE_245DPS);
+  //lsm.setupGyro(lsm.LSM9DS1_GYROSCALE_500DPS);
+  //lsm.setupGyro(lsm.LSM9DS1_GYROSCALE_2000DPS);
 }
-//===================================Magnetometer Heading=================
+//===================================Magnetometer Setup=================
