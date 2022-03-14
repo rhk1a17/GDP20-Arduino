@@ -1,3 +1,8 @@
+//======================================Constants===================================
+float steer_weightage = 0.9;
+float tilt_weightage = 0.1;
+//======================================Constants===================================
+
 //======================================Accel===================================
 #include "BMI088.h"
 float ax = 0, ay = 0, az = 0;
@@ -22,7 +27,7 @@ Adafruit_LSM9DS1 lsm = Adafruit_LSM9DS1();
 #define DECLINATION 0.0833 
 // declination (in degrees) in Southampton
 
-float mx, my, mz, heading;
+float mx, my, mz, heading, bench_heading, mapped_heading;
 //======================================magneto===================================
 
 String long_str,rotation_val;
@@ -59,7 +64,7 @@ void setup(void) {
         bmi088.initialize();
         break;
     }
-    delay(2000);
+    delay(100);
   }
   //=======================Accel==========================
 
@@ -106,8 +111,6 @@ void loop() {
     else {
       heading = atan2(mx, my);
     }
-
-    
     //correct heading according to declination
 
     heading -= DECLINATION * PI / 180;
@@ -121,15 +124,12 @@ void loop() {
       heading += 2 * PI;
     }
 
-    
     //convert values in degree
-
     heading *= 180.0 / PI;
+    heading = (heading - bench_heading)*-1;
+    mapped_heading = map(heading*100,-5000,5000,-100,100);
+    //scaling calibrated heading to -100 to 100 with -50deg to 50deg
     //=====================================Magneto==================================
-
-    // divide total val * weightage (0.9 steer 0.1 tilt) 
-    // -0.45 and -0.05 for offset in UE4
-    //rotation_val = String((((steerval/1023.0)*0.9)-0.45)+(((tiltval/1023.0)*0.1)-0.05)); 
 
     //======================================RPM=====================================
     static unsigned previousRPM;
@@ -160,6 +160,12 @@ void loop() {
     }
     //======================================RPM=====================================
     
+    //======================================Rotation Val=====================================
+    // divide total val * weightage (0.9 steer 0.1 tilt) 
+    // -0.45 and -0.05 for offset in UE4
+    rotation_val = String(((mapped_heading/100.0)*steer_weightage)+(((mapped_ax/45.0)*tilt_weightage))); 
+    //======================================Rotation Val=====================================
+
     //======================================UE4=====================================
     if (!Serial.available()) return;
 
@@ -168,7 +174,7 @@ void loop() {
     if (str == "data")
     {
         // tilt accel val + steer magneto val + rpm separated by comma
-        long_str = String(mapped_ax) + "," + String(heading) + "," + rpmval; 
+        long_str = String(rotation_val) + "," + rpmval; 
         Serial.println(long_str);
     }
     //======================================UE4=====================================
@@ -204,5 +210,40 @@ void setupSensor()
   lsm.setupGyro(lsm.LSM9DS1_GYROSCALE_245DPS);
   //lsm.setupGyro(lsm.LSM9DS1_GYROSCALE_500DPS);
   //lsm.setupGyro(lsm.LSM9DS1_GYROSCALE_2000DPS);
+
+  lsm.read();  /* ask it to read in the data */ 
+  /* Get a new sensor event */ 
+  sensors_event_t a, m, g, temp;
+
+  lsm.getEvent(&a, &m, &g, &temp);
+
+  mx = m.magnetic.x;
+  my = m.magnetic.y;
+  mz = m.magnetic.z;
+
+  //calculate heading
+
+  if (my == 0) {
+    heading = (mx < 0) ? PI : 0;
+  }
+  else {
+    heading = atan2(mx, my);
+  }
+  //correct heading according to declination
+
+  heading -= DECLINATION * PI / 180;
+  if (heading > PI) {
+    heading -= (2 * PI);
+  }
+  else if (heading < -PI) {
+    heading += (2 * PI);
+  }
+  else if (heading < 0) {
+    heading += 2 * PI;
+  }
+
+  //convert values in degree
+  heading *= 180.0 / PI;
+  bench_heading = heading;
 }
 //===================================Magnetometer Setup=================
