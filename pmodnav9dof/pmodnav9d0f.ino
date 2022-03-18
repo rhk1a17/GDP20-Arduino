@@ -225,8 +225,6 @@ void printAttitude(float ax, float ay, float az, float mx, float my, float mz)
 
   float heading;  
 //variable for hading
-
-
   
 //calculate heading
 

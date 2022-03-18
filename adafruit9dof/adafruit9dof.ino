@@ -16,7 +16,10 @@ Adafruit_LSM9DS1 lsm = Adafruit_LSM9DS1();
 // Or hardware SPI! In this case, only CS pins are passed in
 //Adafruit_LSM9DS1 lsm = Adafruit_LSM9DS1(LSM9DS1_XGCS, LSM9DS1_MCS);
 
+#define DECLINATION 0.0833 
+// declination (in degrees) in Southampton
 
+float mx, my, mz, heading;
 void setupSensor()
 {
   // 1.) Set the accelerometer range
@@ -72,7 +75,7 @@ void loop()
   Serial.print("Accel X: "); Serial.print(a.acceleration.x); Serial.print(" m/s^2");
   Serial.print("\tY: "); Serial.print(a.acceleration.y);     Serial.print(" m/s^2 ");
   Serial.print("\tZ: "); Serial.print(a.acceleration.z);     Serial.println(" m/s^2 ");
-*/
+
   Serial.print("Mag X: "); Serial.print(m.magnetic.x);   Serial.print(" uT");
   Serial.print("\tY: "); Serial.print(m.magnetic.y);     Serial.print(" uT");
   Serial.print("\tZ: "); Serial.print(m.magnetic.z);     Serial.println(" uT");
@@ -81,6 +84,36 @@ void loop()
   Serial.print("\tY: "); Serial.print(g.gyro.y);      Serial.print(" rad/s");
   Serial.print("\tZ: "); Serial.print(g.gyro.z);      Serial.println(" rad/s");
 */
+  mx = m.magnetic.x;
+  my = m.magnetic.y;
+  mz = m.magnetic.z;
+
+  mx = mx - (-0.83);
+  my = my - (23.61);
+  mz = mz - (-10.35);
+
+  if (my == 0) {
+    heading = (mx < 0) ? PI : 0;
+  }
+  else {
+    heading = atan2(mx, my);
+  }
+  //correct heading according to declination
+
+  heading -= DECLINATION * PI / 180;
+  if (heading > PI) {
+    heading -= (2 * PI);
+  }
+  else if (heading < -PI) {
+    heading += (2 * PI);
+  }
+  else if (heading < 0) {
+    heading += 2 * PI;
+  }
+
+  //convert values in degree
+  heading *= 180.0 / PI;
+
+  Serial.print(heading);
   Serial.println();
-  delay(200);
 }

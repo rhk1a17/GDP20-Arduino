@@ -55,19 +55,17 @@ void setup(void) {
   Serial.begin(115200);
   Wire.begin();
   Serial.setTimeout(5);
-  
   //=======================Accel==========================
   while(1)
   {
     if(bmi088.isConnection())
     {
-        bmi088.initialize();
-        break;
+      bmi088.initialize();
+      break;
     }
     delay(100);
   }
   //=======================Accel==========================
-
   //=======================Megneto==========================
   // Try to initialise and warn if we couldn't detect the chip
   if (!lsm.begin())
@@ -78,7 +76,6 @@ void setup(void) {
   // helper to just set the default scaling we want, see above!
   setupSensor();
   //=======================Magneto==========================
-
   //=====================RPM Setup========================
   pinMode(RevSensePin, INPUT);
   attachInterrupt(digitalPinToInterrupt(RevSensePin), RevSenseISR, RISING);
@@ -86,7 +83,6 @@ void setup(void) {
 }
 
 void loop() {
-
     //======================================Accel===================================
     bmi088.getAcceleration(&ax, &ay, &az);
     mapped_ax = map(ax,-1000,1000,-90.0,90.0);
@@ -102,6 +98,11 @@ void loop() {
     mx = m.magnetic.x;
     my = m.magnetic.y;
     mz = m.magnetic.z;
+
+    // calibration, offset
+    mx = mx - (-0.83);
+    my = my - (23.61);
+    mz = mz - (-10.35);
 
     //calculate heading
 
@@ -128,6 +129,7 @@ void loop() {
     heading *= 180.0 / PI;
     heading = (heading - bench_heading)*-1;
     mapped_heading = map(heading*100,-5000,5000,-100,100);
+
     //scaling calibrated heading to -100 to 100 with -50deg to 50deg
     //=====================================Magneto==================================
 
@@ -199,18 +201,15 @@ void setupSensor()
   //lsm.setupAccel(lsm.LSM9DS1_ACCELRANGE_4G);
   //lsm.setupAccel(lsm.LSM9DS1_ACCELRANGE_8G);
   //lsm.setupAccel(lsm.LSM9DS1_ACCELRANGE_16G);
-  
   // 2.) Set the magnetometer sensitivity
   lsm.setupMag(lsm.LSM9DS1_MAGGAIN_4GAUSS);
   //lsm.setupMag(lsm.LSM9DS1_MAGGAIN_8GAUSS);
   //lsm.setupMag(lsm.LSM9DS1_MAGGAIN_12GAUSS);
   //lsm.setupMag(lsm.LSM9DS1_MAGGAIN_16GAUSS);
-
   // 3.) Setup the gyroscope
   lsm.setupGyro(lsm.LSM9DS1_GYROSCALE_245DPS);
   //lsm.setupGyro(lsm.LSM9DS1_GYROSCALE_500DPS);
   //lsm.setupGyro(lsm.LSM9DS1_GYROSCALE_2000DPS);
-
   lsm.read();  /* ask it to read in the data */ 
   /* Get a new sensor event */ 
   sensors_event_t a, m, g, temp;
@@ -220,6 +219,11 @@ void setupSensor()
   mx = m.magnetic.x;
   my = m.magnetic.y;
   mz = m.magnetic.z;
+
+  //calibrate magnetometer, hard offset
+  mx = mx - (-0.83);
+  my = my - (23.61);
+  mz = mz - (-10.35);
 
   //calculate heading
 
