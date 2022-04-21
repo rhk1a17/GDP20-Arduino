@@ -1,7 +1,11 @@
+int max_rpm=300;
+int fan_pin=9;
+float value;
+
 const byte RevSensePin = 2;
 const float WheelRadiusInMeters = 0.33;
 const float SFWRadiusInMeteres = 0.05;
-const unsigned long DisplayIntervalMillis = 1;  // Update once per second
+const unsigned long DisplayIntervalMillis = 10;  // Update once per second
 const unsigned long MaxRevTimeMicros = 2000000UL; // >2 seconds per revolution counts as 0 RPM
 
 // Variables used in the ISR and in the main code must be 'volatile'
@@ -18,7 +22,10 @@ void setup()
 {
   Serial.begin(9600);
   pinMode(RevSensePin, INPUT);
+  pinMode(fan_pin,OUTPUT);
+  analogWrite(fan_pin,value);
   attachInterrupt(digitalPinToInterrupt(RevSensePin), RevSenseISR, RISING);
+  analogWrite(fan_pin,0);
 }
 
 void RevSenseISR()
@@ -62,10 +69,16 @@ void displayRPM(unsigned RPM)
 {
   float WheelRPM = RPM/GearRatio;
   float metersPerMinute = WheelRPM * WheelRadiusInMeters;
+  ;
+ 
 
   Serial.print("WheelRPM = "); //print the word "RPM".
-  Serial.println(WheelRPM); // print the rpm value.
-  //Serial.print("\t\t Linear Speed = ");
-  //Serial.print(metersPerMinute/60); //print the linear velocity value.
-  //Serial.println(" m/s");
+  Serial.print(WheelRPM); // print the rpm value.
+  Serial.print("\t\t Linear Speed = ");
+  Serial.print(metersPerMinute/60); //print the linear velocity value.
+  Serial.println(" m/s");
+
+  value=map(WheelRPM,0,max_rpm,0,255);
+  analogWrite(fan_pin,value);
+  delay(100);
 }

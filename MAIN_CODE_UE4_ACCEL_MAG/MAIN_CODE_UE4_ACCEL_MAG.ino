@@ -1,6 +1,6 @@
 //======================================Constants===================================
 float steer_weightage = 0.9;
-float tilt_weightage = 0.1;
+float tilt_weightage = 0.5;
 //======================================Constants===================================
 
 //======================================Accel===================================
@@ -33,12 +33,12 @@ float mx, my, mz, heading, bench_heading, mapped_heading;
 String long_str,rotation_val;
 long rpmval;
 
-//==========================RPM constants==================================
+//==========================RPM & fan constants==================================
 const byte RevSensePin = 2;
 const float WheelRadiusInMeters = 0.33;
 const float SFWRadiusInMeteres = 0.05;
-const unsigned long DisplayIntervalMillis = 10;  // Update once per second
-const unsigned long MaxRevTimeMicros = 2000000UL; // >2 seconds per revolution counts as 0 RPM
+const unsigned long DisplayIntervalMillis = 1;  // Update once per second
+const unsigned long MaxRevTimeMicros = 500000UL; // >0.5 seconds per revolution counts as 0 RPM
 
 // Variables used in the ISR and in the main code must be 'volatile'
 volatile unsigned long RevSenseTimeMicros = 0;  //  Time that the rising edge was sensed
@@ -49,7 +49,11 @@ const unsigned long SixtySecondsInMicros = 60000000UL;
 const float WheelCircumferenceInMeters = TWO_PI * WheelRadiusInMeters;
 const float GearRatio = WheelRadiusInMeters/SFWRadiusInMeteres;
 const float SFWCircuferenceInMeters = TWO_PI * SFWRadiusInMeteres;
-//==========================RPM constants==================================
+
+int max_rpm=300;
+int fan_pin=9;
+float value;
+//==========================RPM & fan constants==================================
 
 void setup(void) {
   Serial.begin(115200);
@@ -76,10 +80,13 @@ void setup(void) {
   // helper to just set the default scaling we want, see above!
   setupSensor();
   //=======================Magneto==========================
-  //=====================RPM Setup========================
+  //=====================RPM & fan Setup========================
   pinMode(RevSensePin, INPUT);
   attachInterrupt(digitalPinToInterrupt(RevSensePin), RevSenseISR, RISING);
-  //=====================RPM Setup========================
+
+  pinMode(fan_pin,OUTPUT);
+  analogWrite(fan_pin,0);
+  //=====================RPM & fan Setup========================
 }
 
 void loop() {
@@ -99,7 +106,7 @@ void loop() {
     my = m.magnetic.y;
     mz = m.magnetic.z;
 
-    // calibration, offset
+    // calibration, offset 
     mx = mx - (-0.83);
     my = my - (23.61);
     mz = mz - (-10.35);
@@ -128,12 +135,12 @@ void loop() {
     //convert values in degree
     heading *= 180.0 / PI;
     heading = (heading - bench_heading)*-1;
-    mapped_heading = map(heading*100,-5000,5000,-100,100);
+    mapped_heading = map(heading*100,-9000,9000,-100,100);
 
-    //scaling calibrated heading to -100 to 100 with -50deg to 50deg
+    //scaling calibrated heading to -100 to 100 with -90deg to 90deg
     //=====================================Magneto==================================
 
-    //======================================RPM=====================================
+    //======================================RPM & fan=====================================
     static unsigned previousRPM;
 
     // Only update the display once per DisplayIntervalMillis
@@ -160,12 +167,15 @@ void loop() {
         float metersPerMinute = WheelRPM * WheelRadiusInMeters;
         rpmval = WheelRPM;
     }
-    //======================================RPM=====================================
+
+    value=map(rpmval,0,max_rpm,0,255);
+    analogWrite(fan_pin,value);
+    //======================================RPM & fan=====================================
     
     //======================================Rotation Val=====================================
     // divide total val * weightage (0.9 steer 0.1 tilt) 
     // -0.45 and -0.05 for offset in UE4
-    rotation_val = String(((mapped_heading/100.0)*steer_weightage)+(((mapped_ax/45.0)*tilt_weightage))); 
+    rotation_val = String(((mapped_heading/90.0)*steer_weightage)+(((mapped_ax/90.0)*tilt_weightage))); 
     //======================================Rotation Val=====================================
 
     //======================================UE4=====================================
@@ -179,6 +189,7 @@ void loop() {
         long_str = String(rotation_val) + "," + rpmval; 
         Serial.println(long_str);
     }
+    Serial.flush();
     //======================================UE4=====================================
 }
 
