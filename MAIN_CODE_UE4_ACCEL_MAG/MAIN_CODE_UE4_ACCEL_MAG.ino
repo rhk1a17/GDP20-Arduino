@@ -179,7 +179,7 @@ void loop() {
     //====================================RPM & fan=================================
     
     //======================================Rotation Val=====================================
-    // rotation value sent to UE4
+    // rotation value sent to UE4 (a single value for rotation, can be separated depending on needs)
     rotation_val = String(((mapped_heading/90.0)*steer_weightage)+(((mapped_ax/90.0)*tilt_weightage))); 
     //======================================Rotation Val=====================================
 
